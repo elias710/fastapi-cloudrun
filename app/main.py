@@ -2,7 +2,6 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
-
 @app.get("/")
-def read_root():
-    return {"Hello": "From the cloud!"}
+def root():
+    return {"message": "CD funcionando correctamente desde Cloud Run!"}
