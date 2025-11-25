@@ -1,0 +1,67 @@
+name: FastAPI CI and Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run Hadolint
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: Dockerfile
+
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: docker build -t my_fastapi_app .
+
+    - name: Run Docker container
+      run: docker run --name test_container -d -p 8000:8000 -e PORT=8000 my_fastapi_app
+
+    - name: Wait for FastAPI to start
+      run: sleep 10
+
+    - name: Test API
+      run: curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ | grep 200
+
+    - name: Save Docker image
+      run: docker save my_fastapi_app:latest > my_fastapi_app.tar
+
+    - name: Upload Docker image as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: my_fastapi_app
+        path: my_fastapi_app.tar
+
+  security-scan:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download Docker image from artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: my_fastapi_app
+
+    - name: Load Docker image
+      run: docker load < my_fastapi_app.tar
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'my_fastapi_app:latest'
+        format: 'table'
+        exit-code: '1'
